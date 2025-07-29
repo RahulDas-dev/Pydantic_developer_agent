@@ -3,9 +3,10 @@ from pathlib import Path
 from typing import List
 
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext, Tool, ToolReturn
+from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
-from agent.context import AgentContext
+from coder_agent.context import AgentContext
 
 logger = logging.getLogger(__name__)
 
@@ -38,61 +39,43 @@ async def list_directory(
 ) -> ToolReturn:
     """
     List the contents of a directory.
-
     Args:
         path: Path to the directory to list (default: ".")
         show_hidden: Include hidden files and directories (default: False)
         recursive: List directories recursively (default: False)
         max_depth: Maximum depth to list (default: 3, min: 1, max: 10)
-
     Returns:
         Formatted directory listing with information about files and directories
     """
     # Get the agent context which might be used for workspace paths
-    workspace_path = ctx.deps.workspace_path
+    workspace_path = str(ctx.deps.workspace_path)
     logger.debug(f"Running list_directory with workspace_path: {workspace_path}")
     logger.info(
         f"Listing directory: {path} (show_hidden: {show_hidden}, recursive: {recursive}, max_depth: {max_depth})"
     )
-
     # Validate max_depth
-    min_depth = 1
+    min_depth_limit = 1
     max_depth_limit = 10
-    if max_depth < min_depth:
-        max_depth = min_depth
-        logger.warning(f"max_depth was less than {min_depth}, setting to {min_depth}")
-    elif max_depth > max_depth_limit:
-        max_depth = max_depth_limit
-        logger.warning(f"max_depth was greater than {max_depth_limit}, setting to {max_depth_limit}")
+    max_depth = max(min_depth_limit, min(max_depth, max_depth_limit))
+    dir_path = Path(path).resolve()
+    if not dir_path.exists():
+        logger.warning(f"Directory not found: {path}")
+        return ToolReturn(
+            return_value=f"Directory not found: {path}",
+            content=[f"# Error: Directory Not Found", f"The directory `{path}` could not be found."],
+            metadata={"success": False},
+        )
+    if not dir_path.is_dir():
+        logger.warning(f"Path is not a directory: {path}")
+        return ToolReturn(
+            return_value=f"Path is not a directory: {path}",
+            content=["# Error: Not a Directory", f"The path `{path}` exists but is not a directory."],
+            metadata={"success": False},
+        )
 
     try:
         # Resolve path relative to workspace root if it's not absolute
-        if not Path(path).is_absolute():
-            dir_path = Path(workspace_path) / path
-            logger.debug(f"Resolved relative path using workspace_root: {dir_path}")
-        else:
-            dir_path = Path(path)
-
-        dir_path = dir_path.resolve()
-        logger.debug(f"Resolved path: {dir_path}")
-
-        if not dir_path.exists():
-            logger.warning(f"Directory not found: {path}")
-            error_content = ["## Error: Directory Not Found", f"The directory `{path}` could not be found."]
-            return ToolReturn(
-                return_value=f"Directory not found: {path}", content=error_content, metadata={"success": False}
-            )
-
-        if not dir_path.is_dir():
-            logger.warning(f"Path is not a directory: {path}")
-            error_content = ["## Error: Not a Directory", f"The path `{path}` exists but is not a directory."]
-            return ToolReturn(
-                return_value=f"Path is not a directory: {path}", content=error_content, metadata={"success": False}
-            )
-
-        # List directory contents
         entries = await _list_directory_recursive(dir_path, show_hidden, recursive, max_depth, 0)
-
         # Prepare info for metadata
         dir_info = DirectoryInfo(
             path=str(dir_path),
@@ -100,57 +83,54 @@ async def list_directory(
             directories=sum(1 for e in entries if e.is_dir),
             files=sum(1 for e in entries if not e.is_dir),
         )
-
         # Format the summary for return_value
-        summary = (
-            f"Directory: {path} - "
-            f"{dir_info.total_entries} items "
-            f"({dir_info.directories} directories, {dir_info.files} files)"
-        )
-
+        summary = {
+            f"Directory: {path} - ",
+            f"{dir_info.total_entries} items ",
+            f"({dir_info.directories} directories, {dir_info.files} files)",
+        }
         # Format detailed output for content
-        output_lines = [f"## Directory listing for: `{path}`"]
-
+        output_lines = [f"# Directory listing for: `{path}`"]
         # Add stats line
         output_lines.append(
             f"- Total: {dir_info.total_entries} items ({dir_info.directories} directories, {dir_info.files} files)"
         )
         output_lines.append("")  # Empty line before listing
-
         # Add entries
         for entry in entries:
             indent = "  " * entry.depth
             type_indicator = "/" if entry.is_dir else ""
             size_info = f" ({entry.size} bytes)" if not entry.is_dir else ""
-
             output_lines.append(f"{indent}{entry.name}{type_indicator}{size_info}")
-
-        logger.info(f"Successfully listed directory: {path} with {dir_info.total_entries} entries")
-
+        logger.info(f"Successfully listed directory: {path} with {dir_info.total_entries} items")
         # Return the result with both summary and detailed content
         return ToolReturn(
             return_value=summary,
             content=output_lines,
             metadata={"success": True, "directory_info": dir_info.model_dump()},
         )
-
     except PermissionError as e:
-        logger.error(f"Permission error listing directory {path}: {e!s}")
-        error_content = ["## Error: Permission Denied", f"Cannot access directory `{path}`: Permission denied."]
+        logger.error(f"Permission error listing directory {path}: {e}")
+        error_content = [
+            "# Error: Permission Denied",
+            f"Cannot access directory `{path}`:",
+            f"- Error Type: {type(e).__name__}",
+            f"- Details: {e}",
+        ]
         return ToolReturn(
             return_value=f"Permission denied: {path}",
             content=error_content,
             metadata={"success": False, "error": "PermissionError"},
         )
     except Exception as e:
-        logger.error(f"Error listing directory {path}: {type(e).__name__}: {e!s}")
+        logger.error(f"Error listing directory {path}: {type(e).__name__}: {e}")
         error_content = [
-            f"## Error Listing Directory: {path}",
+            f"# Error Listing Directory: {path}",
             f"- Error Type: {type(e).__name__}",
-            f"- Details: {e!s}",
+            f"- Details: {e}",
         ]
         return ToolReturn(
-            return_value=f"Failed to list directory: {e!s}",
+            return_value=f"Failed to list directory: {e}",
             content=error_content,
             metadata={"success": False, "error": type(e).__name__, "details": str(e)},
         )
@@ -161,25 +141,18 @@ async def _list_directory_recursive(
 ) -> List[DirectoryEntry]:
     """List directory contents recursively."""
     entries = []
-
     try:
         for item in path.iterdir():
             # Skip hidden files if not requested
             if not show_hidden and item.name.startswith("."):
                 continue
-
             try:
                 # Get file size if it's a file
                 size = item.stat().st_size if item.is_file() else 0
             except OSError:
                 size = 0
-
-            # Create entry for this item
-            entry = DirectoryEntry(name=item.name, path=str(item), is_dir=item.is_dir(), depth=current_depth, size=size)
-
+            entry = DirectoryEntry(name=item.name, path=str(item), is_dir=item.is_dir(), depth=current_depth)
             entries.append(entry)
-
-            # Recurse into directories if requested and depth limit not reached
             if recursive and item.is_dir() and current_depth < max_depth:
                 try:
                     sub_entries = await _list_directory_recursive(
@@ -189,27 +162,7 @@ async def _list_directory_recursive(
                 except PermissionError:
                     # Skip directories we can't access
                     logger.debug(f"Permission denied for subdirectory: {item}")
-
     except PermissionError:
         # Handle permission denied for the main directory
         logger.debug(f"Permission denied listing directory: {path}")
-
     return entries
-
-
-# Create a Tool instance that can be used with the Agent
-list_directory_tool = Tool(list_directory, takes_ctx=True)
-
-
-# Example of how to register this tool with an agent:
-"""
-from pydantic_ai import Agent
-from agent.tools.list_directory import list_directory_tool
-
-# Create an agent with the list_directory tool
-agent = Agent(
-    'your-model-name',
-    tools=[list_directory_tool],
-    system_prompt="You are an assistant that can browse the file system."
-)
-"""

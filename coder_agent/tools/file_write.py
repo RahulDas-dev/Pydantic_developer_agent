@@ -4,9 +4,10 @@ from pathlib import Path
 
 import aiofiles
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext, ToolReturn
+from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
-from agent.context import AgentContext
+from coder_agent.context import AgentContext
 
 logger = logging.getLogger(__name__)
 
@@ -122,32 +123,29 @@ async def write_file(
         )
 
     except PermissionError as e:
-        logger.error(f"Permission error writing to file {path}: {e!s}")
-        error_content = ["## Error: Permission Denied", f"Cannot write to file `{path}`: Permission denied."]
+        logger.error(f"Permission error writing to file {path}: {e}")
         return ToolReturn(
             return_value=f"Permission denied writing to file: {path}",
-            content=error_content,
+            content=["## Error: Permission Denied", f"Cannot write to file `{path}`: Permission denied."],
             metadata={"success": False, "error": "PermissionError"},
         )
 
     except FileNotFoundError as e:
-        logger.error(f"File not found error writing to {path}: {e!s}")
-        error_content = [
-            "## Error: File Location Invalid",
-            f"Cannot write to file `{path}`: Directory does not exist and",
-            "create_dirs is disabled or location is invalid.",
-        ]
+        logger.error(f"File not found error writing to {path}: {e}")
         return ToolReturn(
             return_value=f"Invalid file location: {path}",
-            content=error_content,
+            content=[
+                "## Error: File Location Invalid",
+                f"Cannot write to file `{path}`: Directory does not exist and",
+                "create_dirs is disabled or location is invalid.",
+            ],
             metadata={"success": False, "error": "FileNotFoundError"},
         )
 
     except Exception as e:
-        logger.error(f"Error writing to file {path}: {type(e).__name__}: {e!s}")
-        error_content = [f"## Error Writing File: {path}", f"- Error Type: {type(e).__name__}", f"- Details: {e!s}"]
+        logger.error(f"Error writing to file {path}: {type(e).__name__}: {e}")
         return ToolReturn(
-            return_value=f"Failed to write file: {e!s}",
-            content=error_content,
+            return_value=f"Failed to write file: {e}",
+            content=[f"## Error Writing File: {path}", f"- Error Type: {type(e).__name__}", f"- Details: {e}"],
             metadata={"success": False, "error": type(e).__name__, "details": str(e)},
         )

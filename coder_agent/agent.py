@@ -2,9 +2,10 @@ import logging
 from typing import Union
 
 from pydantic import BaseModel, Field
-from pydantic.ai import Agent, RunContext, Tool
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.messages import Tool
 
-from agent.tools import edit_file, glob_search, list_directory, read_file, write_file
+from coder_agent.tools import edit_file, glob_search, list_directory, read_file, write_file
 
 from .context import AgentContext
 from .factories import llm_factory
@@ -19,7 +20,7 @@ class Failure(BaseModel):
     reason: str = Field(description="The Reason why the task failed")
 
 
-agent = Agent[AgentContext, str | Failure](
+coder = Agent[AgentContext, str | Failure](
     name="Coder Agent",
     # description="An agent that can perform various Software Engineering tasks.",
     model=llm_factory("azure"),
@@ -36,7 +37,7 @@ agent = Agent[AgentContext, str | Failure](
 )
 
 
-@agent.system_prompt
+@coder.system_prompt
 async def get_system_prompt(ctx: RunContext[AgentContext]) -> str:
     _system_message = ctx.deps.retrieve_system_message()
     if _system_message:
