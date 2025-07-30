@@ -24,10 +24,6 @@ def llm_factory(provider_name: TClientName, model_name: TModelName | None = None
         from pydantic_ai.models.openai import OpenAIModel
         from pydantic_ai.providers.azure import AzureProvider
 
-        model_name = model_name or "finaclegpt4.1"
-        if model_name not in ["finaclegpt4.1", "finaclegpt4o16K"]:
-            raise ValueError("Invalid model name for Azure")
-
         return OpenAIModel(
             model_name,
             provider=AzureProvider(
