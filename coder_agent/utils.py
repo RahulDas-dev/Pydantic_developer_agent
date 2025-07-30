@@ -25,6 +25,14 @@ def has_python_files(workspace_path: Path | str) -> bool:
     return any(Path(workspace_path, file).exists() for file in PYTHON_FILES)
 
 
+def has_node_files(workspace_path: Path | str) -> bool:
+    """
+    Check if the given workspace path contains any Node.js files.
+    """
+    node_files = ["package.json", "package-lock.json", "yarn.lock"]
+    return any(Path(workspace_path, file).exists() for file in node_files)
+
+
 def is_valid_workspace(workspace_path: Path | str) -> bool:
     """
     Check if the given workspace path is valid.

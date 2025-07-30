@@ -7,7 +7,7 @@ from pydantic_ai.models import Model
 
 load_dotenv()
 
-TClientName = Literal["azure", "openai", "google", "anthropic", "aws"]
+TClientName = Literal["azure", "openai", "google", "anthropic", "aws", "ollama"]
 TModelName = Literal[
     "gpt-4.0",
     "gpt-4",
@@ -85,5 +85,16 @@ def llm_factory(provider_name: TClientName, model_name: TModelName | None = None
                 region_name=region_name,
             ),
         )
+
+    if provider_name == "ollama":
+        from pydantic_ai.models.openai import OpenAIModel
+        from pydantic_ai.providers.openai import OpenAIProvider
+
+        ollama_base_url = os.environ.get("OLLAMA_API_BASE", None)
+
+        if ollama_base_url is None:
+            raise ValueError("Environment variable OLLAMA_API_BASE must be set")
+
+        return OpenAIModel(model_name, provider=OpenAIProvider(base_url=ollama_base_url))
 
     raise ValueError("Invalid client type provided")

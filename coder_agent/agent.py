@@ -22,7 +22,7 @@ class Failure(BaseModel):
 coder = Agent[AgentContext, str | Failure](
     name="Coder Agent",
     # description="An agent that can perform various Software Engineering tasks.",
-    model=llm_factory("azure"),
+    model=llm_factory("ollama", "qwen3:8b"),
     tools=[
         Tool(read_file, takes_ctx=True),
         Tool(list_directory, takes_ctx=True),

@@ -7,14 +7,16 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import aiofiles
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext, ToolReturn
+from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
-from agent.context import AgentContext
-from agent.tools.utils import is_within_root, should_ignore_path
+from coder_agent.context import AgentContext
+
+from .utils import is_within_root, should_ignore_path
 
 # Constants
 MAX_RESULTS_LIMIT = 1000
@@ -32,7 +34,7 @@ class GrepMatch(BaseModel):
     relative_path: str = Field(description="Path relative to workspace root")
     line_number: int = Field(description="Line number of the match")
     line: str = Field(description="Matched line content")
-    context_lines: List[str] = Field(description="Context lines surrounding the match")
+    context_lines: list[str] = Field(description="Context lines surrounding the match")
 
 
 class GrepResult(BaseModel):
@@ -43,10 +45,54 @@ class GrepResult(BaseModel):
     files_with_matches: int = Field(description="Number of files with matches")
     matches_found: int = Field(description="Total number of matches found")
     results_limited: bool = Field(description="Whether results were limited")
-    matches: List[GrepMatch] = Field(description="List of matches found")
+    matches: list[GrepMatch] = Field(description="list of matches found")
 
 
-async def _search_file(file_path: Path, pattern: re.Pattern, context_lines: int) -> List[Dict[str, Any]]:
+@dataclass
+class FormatData:
+    """Helper class to pass formatting data."""
+
+    pattern: str
+    all_matches: list[dict[str, Any]]
+    files_dict: dict[str, list[dict[str, Any]]]
+    files_with_matches: int
+    max_results: int
+    workspace_path: str
+
+
+@dataclass
+class GrepParams:
+    """Parameters for the grep function."""
+
+    pattern: str
+    path: str | None = None
+    include: str | None = None
+    max_results: int = DEFAULT_MAX_RESULTS
+    context_lines: int = DEFAULT_CONTEXT_LINES
+
+
+@dataclass
+class GrepError:
+    """Represents an error in the grep tool."""
+
+    error_msg: str
+    error_code: str
+    exception: str | None = None
+
+    def to_tool_return(self) -> ToolReturn:
+        """Convert to a ToolReturn."""
+        return ToolReturn(
+            return_value=self.error_msg,
+            content=f"## Error\n\n{self.error_msg}",
+            metadata={
+                "success": False,
+                "error": self.error_code,
+                **({"exception": self.exception} if self.exception else {}),
+            },
+        )
+
+
+async def _search_file(file_path: Path, pattern: re.Pattern, context_lines: int) -> list[dict[str, Any]]:
     """Search for pattern in a single file."""
     try:
         async with aiofiles.open(file_path, encoding="utf-8", errors="ignore") as f:
@@ -82,7 +128,7 @@ async def _search_file(file_path: Path, pattern: re.Pattern, context_lines: int)
         return []
 
 
-def _get_files_by_pattern(search_path: Path, include_pattern: str) -> List[Path]:
+def _get_files_by_pattern(search_path: Path, include_pattern: str) -> list[Path]:
     """Find files matching a glob pattern."""
     # If the include pattern is a full path, use it as is
     if Path(include_pattern).is_absolute():
@@ -109,7 +155,7 @@ def _get_files_by_pattern(search_path: Path, include_pattern: str) -> List[Path]
     return result_files
 
 
-def _get_all_files(search_path: Path) -> List[Path]:
+def _get_all_files(search_path: Path) -> list[Path]:
     """Get all files recursively from a directory."""
     try:
         return [
@@ -122,7 +168,7 @@ def _get_all_files(search_path: Path) -> List[Path]:
         return []
 
 
-def _get_files_to_search(search_path: Path, include_pattern: Optional[str] = None) -> List[Path]:
+def _get_files_to_search(search_path: Path, include_pattern: str | None = None) -> list[Path]:
     """Get list of files to search based on include pattern."""
     if not include_pattern:
         # Search all files recursively
@@ -137,12 +183,12 @@ def _get_files_to_search(search_path: Path, include_pattern: Optional[str] = Non
 
 
 async def _process_search_results(
-    files_to_search: List[Path], regex: re.Pattern, context_lines: int, max_results: int
-) -> Dict[str, Any]:
+    files_to_search: list[Path], regex: re.Pattern, context_lines: int, max_results: int
+) -> dict[str, Any]:
     """Process search results in batches.
 
     Returns:
-        Dict with search results
+        dict with search results
     """
     all_matches = []
     files_with_matches = 0
@@ -170,7 +216,7 @@ async def _process_search_results(
     return {"all_matches": all_matches, "files_with_matches": files_with_matches}
 
 
-def _format_no_results(pattern: str, search_path: Path, include: Optional[str], files_searched: int) -> ToolReturn:
+def _format_no_results(pattern: str, search_path: Path, include: str | None, files_searched: int) -> ToolReturn:
     """Format response when no results are found."""
     if files_searched == 0:
         message = "No files found matching the search criteria."
@@ -192,12 +238,12 @@ def _format_no_results(pattern: str, search_path: Path, include: Optional[str], 
 
 
 def _prepare_structured_matches(
-    all_matches: List[Dict[str, Any]], workspace_path: Path
-) -> Tuple[List[GrepMatch], Dict[str, List[Dict[str, Any]]]]:
+    all_matches: list[dict[str, Any]], workspace_path: str
+) -> tuple[list[GrepMatch], dict[str, list[dict[str, Any]]]]:
     """Convert matches to structured format and group by file.
 
     Returns:
-        Tuple with (structured_matches, files_dict)
+        tuple with (structured_matches, files_dict)
     """
     # Group matches by file
     files_dict = {}
@@ -234,55 +280,11 @@ def _prepare_structured_matches(
     return structured_matches, files_dict
 
 
-@dataclass
-class FormatData:
-    """Helper class to pass formatting data."""
-
-    pattern: str
-    all_matches: List[Dict[str, Any]]
-    files_dict: Dict[str, List[Dict[str, Any]]]
-    files_with_matches: int
-    max_results: int
-    workspace_path: Path
-
-
-@dataclass
-class GrepParams:
-    """Parameters for the grep function."""
-
-    pattern: str
-    path: Optional[str] = None
-    include: Optional[str] = None
-    max_results: int = DEFAULT_MAX_RESULTS
-    context_lines: int = DEFAULT_CONTEXT_LINES
-
-
-@dataclass
-class GrepError:
-    """Represents an error in the grep tool."""
-
-    error_msg: str
-    error_code: str
-    exception: Optional[str] = None
-
-    def to_tool_return(self) -> ToolReturn:
-        """Convert to a ToolReturn."""
-        return ToolReturn(
-            return_value=self.error_msg,
-            content=f"## Error\n\n{self.error_msg}",
-            metadata={
-                "success": False,
-                "error": self.error_code,
-                **({"exception": self.exception} if self.exception else {}),
-            },
-        )
-
-
-def _format_content_lines(data: FormatData) -> List[str]:
+def _format_content_lines(data: FormatData) -> list[str]:
     """Format content lines for the output.
 
     Returns:
-        List of content lines
+        list of content lines
     """
     content_lines = [
         f"## Search Results: `{data.pattern}`",

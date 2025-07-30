@@ -68,7 +68,9 @@ You are running in a sandboxed environment with limited access to files outside 
 """.strip()
 
 DIRECT_SYSTEM_ACCESS_MESSAGE = """# Direct System Access
-You are running directly on the user's system. For critical commands that may modify the system outside of the project directory, remind the user to consider using a sandboxed environment.
+You are running directly on the user's system. For critical commands that may modify the syst1m outside of the project directory, remind the user to consider using a sandboxed environment.
+
+CURRENT WORKING DIRECTORY: ${CURRENT_WORKING_DIRECTORY}
 """.strip()
 
 GIT_CONTEXT_MESSAGE = """# Git Repository
