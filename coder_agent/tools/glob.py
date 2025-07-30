@@ -8,7 +8,7 @@ from pydantic_ai.messages import ToolReturn
 
 from coder_agent.context import AgentContext
 
-from .utility import is_within_root, should_ignore_path
+from .utils import is_within_root, should_ignore_path
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ def _perform_glob_search(base_path: Path | str, pattern: str) -> list[Path]:
     Perform the glob search using Path.glob.
 
     Args:
-        base_path obj: The base directory path to search from
+        base_path: The base directory path to search from
         pattern: The glob pattern to search for
 
     Returns:
@@ -220,7 +220,7 @@ async def glob_search(
             metadata={"success": False, "error": "invalid_base_path"},
         )
 
-    if not is_within_root(Path(base_path), Path(workspace_path)):
+    if base_path and (not is_within_root(Path(base_path), Path(workspace_path))):
         return ToolReturn(
             return_value=f"Base path must be within root directory ({workspace_path}): {base_path}",
             content=[
@@ -265,7 +265,7 @@ async def glob_search(
             return ToolReturn(
                 return_value=f"No files found matching pattern '{pattern}'",
                 content=[
-                    "# No matches found",
+                    "## No matches found",
                     f"No files or directories match the pattern `{pattern}` in `{base_path}`.",
                 ],
                 metadata={"success": True, "glob_result": glob_result.model_dump()},
@@ -280,15 +280,15 @@ async def glob_search(
         )
 
     except Exception as e:
-        logger.error(f"Glob search failed: {type(e).__name__}: {e}")
+        logger.error(f"Glob search failed: {type(e).__name__}: {e!s}")
         error_content = [
-            "# Error: Glob Search Failed",
+            "## Error: Glob Search Failed",
             f"Failed to search with pattern `{pattern}`",
             f"- Error Type: {type(e).__name__}",
-            f"- Details: {e}",
+            f"- Details: {e!s}",
         ]
         return ToolReturn(
-            return_value=f"Error: Glob search failed: {e}",
+            return_value=f"Error: Glob search failed: {e!s}",
             content=error_content,
             metadata={"success": False, "error": "glob_failed", "exception": str(e)},
         )

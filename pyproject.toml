@@ -5,8 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aiofiles>=24.1.0",
     "pydantic>=2.11.7",
-    "pydantic-ai>=0.4.7",
+    "pydantic-ai",
     "pydantic-settings>=2.10.1",
 ]
 
@@ -15,7 +16,6 @@ dev = [
     "pyclean>=3.1.0",
     "ruff>=0.12.5",
 ]
-
 
 
 [tool.ruff]
@@ -43,3 +43,6 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
+
+[tool.uv.sources]
+pydantic-ai = { git = "https://github.com/pydantic/pydantic-ai.git", rev = "refs/pull/2365/head" }

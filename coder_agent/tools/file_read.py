@@ -55,42 +55,33 @@ async def read_file(
 
     try:
         async with aiofiles.open(file_path, encoding=encoding) as f:
-            if start_line or end_line:
-                lines = await f.readlines()
-                start_idx = (start_line - 1) if start_line else 0
-                end_idx = end_line if end_line else len(lines)
-                selected_lines = lines[start_idx:end_idx]
-                content = "".join(selected_lines)
-                logger.debug(f"Read lines {start_idx + 1} to {end_idx} from file")
-            else:
-                content = await f.read()
-                logger.debug(f"Read entire file, size: {len(content)} bytes")
+            lines = await f.readlines()
+            start_idx = (start_line - 1) if start_line else 0
+            end_idx = end_line if end_line else len(lines)
+            selected_lines = lines[start_idx:end_idx]
+            content = "".join(selected_lines)
+            lines_info = f" (lines {start_idx + 1}-{end_idx})"
+            logger.debug(f"Read lines {start_idx + 1} to {end_idx} from file")
 
         stat = file_path.stat()
-        file_info = {
-            "path": str(file_path),
-            "size": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-            "lines_read": len(content.splitlines()) if content else 0,
-        }
+        file_info = FileInfo(
+            path=str(file_path),
+            size=stat.st_size,
+            modified=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            lines_read=len(content.splitlines()) if content else 0,
+        )
 
-        lines_info = ""
-        if start_line or end_line:
-            actual_start = start_idx + 1
-            actual_end = end_idx
-            lines_info = f" (lines {actual_start}-{actual_end})"
-
-        summary = f"Successfully read file: {path}{lines_info}"
+        summary = f"Successfully read file: {path} {lines_info}"
 
         file_content = [
             f"## File: {path}",
-            f"- Size: {file_info['size']} bytes",
-            f"- Modified: {file_info['modified']}",
-            f"- Lines Read: {file_info['lines_read']}",
+            f"- Size: {file_info.size} bytes",
+            f"- Modified: {file_info.modified}",
+            f"- Lines Read: {file_info.lines_read}",
         ]
 
-        if start_line or end_line:
-            file_content.append(f"-- Line Range: {actual_start}-{actual_end}")
+        if end_line is not None:
+            file_content.append(f"-- Line Range: {start_idx + 1}-{end_idx}")
 
         file_content.extend(["### Content:", content])
 
@@ -113,11 +104,11 @@ async def read_file(
 
         error_content = [
             f"## Error Reading File: {path}",
-            f"- Error Type: UnicodeDecodeError",
+            "- Error Type: UnicodeDecodeError",
             f"- Encoding: {encoding}",
         ]
 
-        if start_line or end_line:
+        if end_line is not None:
             error_content.append(f"- Line Range: {start_line}-{end_line or 'end'}")
 
         error_content.append(f"- Details: {error_details}")
@@ -142,7 +133,7 @@ async def read_file(
             f"- Error Type: {type(e).__name__}",
         ]
 
-        if start_line or end_line:
+        if end_line is not None:
             error_content.append(f"- Line Range: {start_line}-{end_line or 'end'}")
 
         error_content.append(f"- Details: {error_details}")

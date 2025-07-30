@@ -62,7 +62,7 @@ async def list_directory(
         logger.warning(f"Directory not found: {path}")
         return ToolReturn(
             return_value=f"Directory not found: {path}",
-            content=[f"# Error: Directory Not Found", f"The directory `{path}` could not be found."],
+            content=["# Error: Directory Not Found", f"The directory `{path}` could not be found."],
             metadata={"success": False},
         )
     if not dir_path.is_dir():
@@ -111,27 +111,25 @@ async def list_directory(
         )
     except PermissionError as e:
         logger.error(f"Permission error listing directory {path}: {e}")
-        error_content = [
-            "# Error: Permission Denied",
-            f"Cannot access directory `{path}`:",
-            f"- Error Type: {type(e).__name__}",
-            f"- Details: {e}",
-        ]
         return ToolReturn(
             return_value=f"Permission denied: {path}",
-            content=error_content,
+            content=[
+                "# Error: Permission Denied",
+                f"Cannot access directory `{path}`:",
+                f"- Error Type: {type(e).__name__}",
+                f"- Details: {e}",
+            ],
             metadata={"success": False, "error": "PermissionError"},
         )
     except Exception as e:
         logger.error(f"Error listing directory {path}: {type(e).__name__}: {e}")
-        error_content = [
-            f"# Error Listing Directory: {path}",
-            f"- Error Type: {type(e).__name__}",
-            f"- Details: {e}",
-        ]
         return ToolReturn(
             return_value=f"Failed to list directory: {e}",
-            content=error_content,
+            content=[
+                f"# Error Listing Directory: {path}",
+                f"- Error Type: {type(e).__name__}",
+                f"- Details: {e}",
+            ],
             metadata={"success": False, "error": type(e).__name__, "details": str(e)},
         )
 
@@ -151,7 +149,7 @@ async def _list_directory_recursive(
                 size = item.stat().st_size if item.is_file() else 0
             except OSError:
                 size = 0
-            entry = DirectoryEntry(name=item.name, path=str(item), is_dir=item.is_dir(), depth=current_depth)
+            entry = DirectoryEntry(name=item.name, path=str(item), is_dir=item.is_dir(), depth=current_depth, size=size)
             entries.append(entry)
             if recursive and item.is_dir() and current_depth < max_depth:
                 try:

@@ -2,8 +2,7 @@ import logging
 from typing import Union
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.messages import Tool
+from pydantic_ai import Agent, RunContext, Tool
 
 from coder_agent.tools import edit_file, glob_search, list_directory, read_file, write_file
 

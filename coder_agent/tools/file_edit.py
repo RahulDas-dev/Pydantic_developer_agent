@@ -54,9 +54,9 @@ async def edit_file(
 
     Args:
         file_path: Absolute path to file (must be inside workspace).
-        old_string: Text to replace (with context).
-        new_string: Replacement text.
-        expected_replacements: Expected number of replacements.
+        old_string: The exact literal text to replace. Include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. This string must uniquely identify the location to be changed.
+        new_string: The exact literal text to replace old_string with Ensure the resulting code is correct and idiomatic
+        expected_replacements: Number of replacements expected. Defaults to 1. Use when you want to replace multiple occurrences.
     """
     workspace_path = ctx.deps.workspace_path
     logger.debug(f"Running edit_file with workspace_path: {workspace_path}")
@@ -77,7 +77,7 @@ async def edit_file(
             return_value=f"File path must be within workspace directory ({workspace_path}): {file_path}",
             content=[
                 "## Error: Invalid File Path",
-                f"- The file '{file_path}' must be within the workspace directory.",
+                f"- The file `{file_path}` must be within the workspace directory.",
             ],
             metadata={"success": False, "error": "base_path_outside_root"},
         )
@@ -147,7 +147,8 @@ async def edit_file(
             content=[
                 "## Error: String Not Found",
                 "- The string to replace was not found in the file.",
-                "- Ensure you've included enough context (3+ lines before/after target).",
+                "- Ensure you've included enough context (3+ lines before/after target text).",
+                "with exact White space and indentation.",
             ],
             metadata={"success": False, "error": "no_match_string_found"},
         )
@@ -160,8 +161,8 @@ async def edit_file(
             ),
             content=[
                 "## Error: Unexpected Replacement Count",
-                f"- Expected {expected_replacements}, but found {no_of_occurrences} occurrence(s) of the string.",
-                "- Use a more specific context to target the exact location.",
+                f"- Expected {expected_replacements} replacement(s), but found {no_of_occurrences} occurrence(s) of the string.",
+                "- Use a more specific context to target the exact location to replace.",
             ],
             metadata={
                 "success": False,
@@ -183,6 +184,7 @@ async def edit_file(
                 metadata={"success": False, "error": "string_replacement_on_non_existing_file"},
             )
         is_new_file = True
+        new_content = old_string
 
     try:
         diff_content = _generate_diff(current_content, new_content, Path(file_path))
@@ -204,6 +206,7 @@ async def edit_file(
         content_lines = [f"## File {operation.capitalize()}: {relative_path}"]
         if no_of_occurrences > 1:
             content_lines.append(f"{no_of_occurrences} replacements made")
+        content_lines.append("")
         content_lines.append("### Changes")
         content_lines.append("```diff")
         content_lines.append(diff_content)

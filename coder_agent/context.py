@@ -10,7 +10,7 @@ from .prompts import (
     PYTHON_CONTEXT_MESSAGE,
     SANDBOX_CONTEXT_MESSAGE,
 )
-from .utility import has_python_files, is_git_repository
+from .utils import has_python_files, is_git_repository
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class AgentContext:
             return DOCKER_CONTAINER_MESSAGE
         return DIRECT_SYSTEM_ACCESS_MESSAGE
 
-    def retrive_git_context(self) -> str | None:
+    def retrieve_git_context(self) -> str | None:
         if is_git_repository(self.workspace_path):
             return GIT_CONTEXT_MESSAGE
         return None
