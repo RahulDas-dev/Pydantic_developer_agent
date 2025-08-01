@@ -5,9 +5,12 @@ from pathlib import Path
 from string import Template
 
 from .prompts import (
+    CORE_SYSTEM_MESSAGE,
     DIRECT_SYSTEM_ACCESS_MESSAGE,
     DOCKER_CONTAINER_MESSAGE,
+    FINAL_MESSAGE,
     GIT_CONTEXT_MESSAGE,
+    INTERACTION_EXAMPLES,
     PYTHON_CONTEXT_MESSAGE,
     SANDBOX_CONTEXT_MESSAGE,
 )
@@ -62,7 +65,7 @@ class AgentContext:
         """
         return bool(os.environ.get("SANDBOX_CONTEXT")) or bool(os.environ.get("DOCKER_CONTAINER"))
 
-    def retrieve_system_message(self) -> str | None:
+    def _retrieve_system_message(self) -> str | None:
         """
         Retrieve the system message from the file.
         """
@@ -80,7 +83,7 @@ class AgentContext:
             return None
         return None
 
-    def retrieve_sandbox_context(self) -> str:
+    def _retrieve_sandbox_context(self) -> str:
         """
         Retrieve the sandbox context for the system message.
         """
@@ -90,15 +93,42 @@ class AgentContext:
             return DOCKER_CONTAINER_MESSAGE
         return Template(DIRECT_SYSTEM_ACCESS_MESSAGE).safe_substitute(CURRENT_WORKING_DIRECTORY=self.workspace_path)
 
-    def retrieve_git_context(self) -> str | None:
+    def _retrieve_git_context(self) -> str | None:
         if is_git_repository(self.workspace_path):
             return GIT_CONTEXT_MESSAGE
         return None
 
-    def retrieve_python_context(self) -> str | None:
+    def _retrieve_python_context(self) -> str | None:
         """
         Retrieve the core system message.
         """
         if has_python_files(self.workspace_path):
             return PYTHON_CONTEXT_MESSAGE
         return None
+
+    def get_system_prompt(self) -> str:
+        _system_message = self._retrieve_system_message()
+        if _system_message:
+            return _system_message
+        _context_informations = []
+        _sandbox_context = self._retrieve_sandbox_context()
+        if _sandbox_context:
+            _context_informations.append(_sandbox_context)
+        _git_context = self._retrieve_git_context()
+        if _git_context:
+            _context_informations.append(_git_context)
+        _has_python_context = self._retrieve_python_context()
+        if _has_python_context:
+            _context_informations.append(_has_python_context)
+
+        if _context_informations:
+            return (
+                CORE_SYSTEM_MESSAGE
+                + "\n\n"
+                + "\n".join(_context_informations)
+                + "\n\n"
+                + INTERACTION_EXAMPLES
+                + "\n\n"
+                + FINAL_MESSAGE
+            )
+        return CORE_SYSTEM_MESSAGE + "\n\n" + INTERACTION_EXAMPLES + "\n\n" + FINAL_MESSAGE

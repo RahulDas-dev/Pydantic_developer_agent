@@ -8,8 +8,8 @@ import pytest
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from coder_agent.context import AgentContext
-from coder_agent.tools.directory_list import (
+from lib.context import AgentContext
+from lib.tools.directory_list import (
     DirectoryEntry,
     DirectoryInfo,
     _list_directory_recursive,
@@ -181,7 +181,7 @@ async def test_permission_error_handling() -> None:
     # Mock Path.iterdir to raise PermissionError
     with (
         patch("pathlib.Path.iterdir", side_effect=PermissionError("Access denied")),
-        patch("coder_agent.tools.directory_list.logger") as mock_logger,
+        patch("lib.tools.directory_list.logger") as mock_logger,
     ):
         entries = await _list_directory_recursive(test_path, False, False, 3, 0)
 
@@ -260,9 +260,7 @@ async def test_not_a_directory(temp_dir_structure: Path, mock_agent_context: Mag
 @pytest.mark.asyncio
 async def test_permission_error(temp_dir_structure: Path, mock_agent_context: MagicMock) -> None:
     """Test permission error handling."""
-    with patch(
-        "coder_agent.tools.directory_list._list_directory_recursive", side_effect=PermissionError("Access denied")
-    ):
+    with patch("lib.tools.directory_list._list_directory_recursive", side_effect=PermissionError("Access denied")):
         result = await list_directory(mock_agent_context, str(temp_dir_structure))
 
         # Verify error metadata
@@ -277,9 +275,7 @@ async def test_permission_error(temp_dir_structure: Path, mock_agent_context: Ma
 @pytest.mark.asyncio
 async def test_general_exception(temp_dir_structure: Path, mock_agent_context: MagicMock) -> None:
     """Test general exception handling."""
-    with patch(
-        "coder_agent.tools.directory_list._list_directory_recursive", side_effect=ValueError("Something went wrong")
-    ):
+    with patch("lib.tools.directory_list._list_directory_recursive", side_effect=ValueError("Something went wrong")):
         result = await list_directory(mock_agent_context, str(temp_dir_structure))
 
         # Verify error metadata
@@ -296,8 +292,8 @@ async def test_max_depth_validation(temp_dir_structure: Path, mock_agent_context
     """Test validation of max_depth parameter."""
     # Test with value below minimum
     with (
-        patch("coder_agent.tools.directory_list.logger"),
-        patch("coder_agent.tools.directory_list._list_directory_recursive", return_value=[]),
+        patch("lib.tools.directory_list.logger"),
+        patch("lib.tools.directory_list._list_directory_recursive", return_value=[]),
     ):
         result = await list_directory(mock_agent_context, str(temp_dir_structure), max_depth=0)
         # Should be adjusted to minimum value (1)
@@ -305,8 +301,8 @@ async def test_max_depth_validation(temp_dir_structure: Path, mock_agent_context
 
     # Test with value above maximum
     with (
-        patch("coder_agent.tools.directory_list.logger"),
-        patch("coder_agent.tools.directory_list._list_directory_recursive", return_value=[]),
+        patch("lib.tools.directory_list.logger"),
+        patch("lib.tools.directory_list._list_directory_recursive", return_value=[]),
     ):
         result = await list_directory(mock_agent_context, str(temp_dir_structure), max_depth=20)
         # Should be adjusted to maximum value (10)

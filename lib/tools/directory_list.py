@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from coder_agent.context import AgentContext
+from lib.context import AgentContext
 
 logger = logging.getLogger(__name__)
 

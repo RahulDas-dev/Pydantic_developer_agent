@@ -1,24 +1,13 @@
 # ruff: noqa: PLC0415
 import os
-from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic_ai.models import Model
 
 load_dotenv()
 
-TClientName = Literal["azure", "openai", "google", "anthropic", "aws", "ollama"]
-TModelName = Literal[
-    "gpt-4.0",
-    "gpt-4",
-    "gpt-4o",
-    "gemini-2.5-pro",
-    "claude-3-opus20240229",
-    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",  # This is BEDROCK MODEL
-]
 
-
-def llm_factory(provider_name: TClientName, model_name: TModelName | None = None) -> Model:
+def llm_factory(provider_name: str, model_name: str | None = None) -> Model:
     if provider_name == "azure":
         from openai import AsyncAzureOpenAI
         from pydantic_ai.models.openai import OpenAIModel

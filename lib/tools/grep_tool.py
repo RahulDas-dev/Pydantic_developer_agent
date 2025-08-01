@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from coder_agent.context import AgentContext
+from lib.context import AgentContext
 
 from .utils import is_within_root, should_ignore_path
 
