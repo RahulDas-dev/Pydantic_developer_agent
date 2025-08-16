@@ -1,4 +1,4 @@
-from .main import AgentConfig
-from .model_conf import ModelConfigs
+from .model_conf import ModelConfig
+from .tools_config import ToolsConfig
 
-__all__ = ("AgentConfig", "ModelConfigs")
+__all__ = ("ModelConfig", "ToolsConfig")

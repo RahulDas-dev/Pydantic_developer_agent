@@ -7,9 +7,9 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from cli.configs import AppConfig
 from cli.console import TerminalUI
-from lib import startup_operations
-from lib.configs import AgentConfig
+from cli.startup_ops import setup_envars, setup_loggers, setup_timezone, setup_warnings
 from lib.event_sys import UserInputEvent, get_event_bus, reset_event_bus
 
 logger = logging.getLogger("app")
@@ -21,7 +21,7 @@ class Application:
     ):
         self.session_id = uuid.uuid4().hex if session_id is None else session_id
         self.target_dir = target_dir if target_dir is not None else str(Path.cwd())
-        self.config = AgentConfig() if config_params is None else AgentConfig(**config_params)
+        self.config = AppConfig() if config_params is None else AppConfig(**config_params)
         self.ui = TerminalUI(self.session_id)
         self._initialized = False
         self.event_bus = get_event_bus()
@@ -34,7 +34,10 @@ class Application:
         This method must be called before processing any input.
         """
         # setup_logger_for_cli(self.config)
-        startup_operations(self.config)
+        setup_envars()
+        setup_timezone(self.config)
+        setup_warnings(self.config)
+        setup_loggers(self.config)
         self._terminate_app = False
         logger.info(f"Config Details: {self.config}")
         status = load_dotenv()

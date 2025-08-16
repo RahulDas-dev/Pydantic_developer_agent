@@ -1,12 +1,13 @@
 from pydantic_settings import SettingsConfigDict
 
-from .extra_conf import ExtraConfig
-from .log_conf import LogConfig
-from .model_conf import ModelConfigs
-from .tools_config import ToolsConfig
+from cli.configs.log_conf import LogConfig
+from lib.configs.model_conf import ModelConfig
+from lib.configs.tools_config import ToolsConfig
+
+from .dev_config import DevConfig
 
 
-class AgentConfig(LogConfig, ModelConfigs, ExtraConfig, ToolsConfig):
+class AppConfig(LogConfig, ModelConfig, DevConfig, ToolsConfig):
     model_config = SettingsConfigDict(
         frozen=True,
         env_nested_delimiter="__",

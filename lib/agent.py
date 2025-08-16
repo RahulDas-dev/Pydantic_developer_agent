@@ -4,7 +4,7 @@ from typing import Union
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext, Tool
 
-from lib.configs import AgentConfig
+from lib.configs import ModelConfig
 from lib.tools import edit_file, glob_search, list_directory, read_file, write_file
 
 from .context import AgentContext
@@ -19,7 +19,7 @@ class Failure(BaseModel):
     reason: str = Field(description="The Reason why the task failed")
 
 
-def build_primary_agent(config: AgentConfig) -> Agent[AgentContext, str | Failure]:
+def build_primary_agent(config: ModelConfig) -> Agent[AgentContext, str | Failure]:
     agent = Agent[AgentContext, str | Failure](
         name="CoderAgent",
         model=llm_factory(config.PROVIDER_NAME, config.MODEL_NAME),

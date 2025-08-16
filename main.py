@@ -5,9 +5,7 @@ from pathlib import Path
 
 
 async def run_agent(workspace_path: str, task_str: str | None) -> None:
-    from lib import AgentConfig, AgentContext, build_primary_agent, get_event_bus, startup_operations
-
-    startup_operations(AgentConfig())
+    from lib import AgentContext, ModelConfig, build_primary_agent, get_event_bus
 
     if not Path(workspace_path).is_dir():
         raise ValueError("The provided workspace path should be a directory, not a file.")
@@ -18,7 +16,7 @@ async def run_agent(workspace_path: str, task_str: str | None) -> None:
     # Create the context with the event bus
     context = AgentContext(workspace_path=workspace_path, event_bus=event_bus)
 
-    agent = build_primary_agent(AgentConfig())
+    agent = build_primary_agent(ModelConfig())
 
     while True:
         while not task_str:

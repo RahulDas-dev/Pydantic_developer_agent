@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 Environments = Literal["sandbox", "dev"]
 
 
-class ExtraConfig(BaseSettings):
+class DevConfig(BaseSettings):
     ENVIRONMENT: Environments = "sandbox"
     DEBUG: bool = False
     TIMEZONE: str = Field(description="Timezone", default="UTC")
