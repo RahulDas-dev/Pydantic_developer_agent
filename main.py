@@ -44,28 +44,17 @@ def run_ui() -> None:
     # Create the UI with the event bus
     session_id = "terminal-ui-session"
     ui = TerminalUI(session_id, event_bus)
+    ui.initialize()
+    strt_time = time.time()
 
     try:
-        # Start the display
-        ui.initialize()
-
-        # Main loop with error handling outside the loop for better performance
-        try:
-            # Keep the UI running with event-driven updates
-            while ui.running:
-                # Check for active tool calls and update their timers
-                if ui.active_tool_calls:
-                    ui.refresh()
-
-                # Refresh the display periodically (slower when idle)
-                time.sleep(0.2)
-
-                # Regular refresh to keep animations smooth
-                ui.refresh()
-
-        except Exception as e:
-            print(f"Error in UI loop: {e}")
-
+        while True:
+            ui.refresh()
+            time.sleep(0.2)
+            if time.time() - strt_time > 60:
+                break
+    except Exception as e:
+        print(f"Error in UI loop: {e}")
     except KeyboardInterrupt:
         print("Received keyboard interrupt.")
     finally:
