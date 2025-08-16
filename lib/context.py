@@ -3,7 +3,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
+from typing import Protocol
 
+from .event_sys import EventBus
 from .prompts import (
     CORE_SYSTEM_MESSAGE,
     DIRECT_SYSTEM_ACCESS_MESSAGE,
@@ -19,9 +21,16 @@ from .utils import has_node_files, has_python_files, is_git_repository
 logger = logging.getLogger(__name__)
 
 
+class HasEventBus(Protocol):
+    """Protocol ensuring that a class has an event_bus attribute of type EventBus."""
+
+    event_bus: EventBus
+
+
 @dataclass(frozen=True, slots=True)
-class AgentContext:
+class AgentContext(HasEventBus):
     workspace_path: str
+    event_bus: EventBus
 
     @property
     def is_workspace_empty(self) -> bool:

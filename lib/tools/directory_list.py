@@ -1,8 +1,7 @@
 import logging
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List
 
-from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -11,23 +10,25 @@ from lib.context import AgentContext
 logger = logging.getLogger(__name__)
 
 
-class DirectoryEntry(BaseModel):
+@dataclass(frozen=True, slots=True)
+class DirectoryEntry:
     """Information about a directory entry."""
 
-    name: str = Field(description="Name of the file or directory")
-    path: str = Field(description="Full path to the file or directory")
-    is_dir: bool = Field(description="Whether the entry is a directory")
-    depth: int = Field(0, description="Nesting depth in directory structure")
-    size: int = Field(0, description="Size in bytes (0 for directories)")
+    name: str
+    path: str
+    is_dir: bool
+    depth: int
+    size: int
 
 
-class DirectoryInfo(BaseModel):
+@dataclass(frozen=True, slots=True)
+class DirectoryInfo:
     """Information about a directory listing."""
 
-    path: str = Field(description="Absolute path to the directory")
-    total_entries: int = Field(0, description="Total number of entries")
-    directories: int = Field(0, description="Number of directories")
-    files: int = Field(0, description="Number of files")
+    path: str
+    total_entries: int = 0
+    directories: int = 0
+    files: int = 0
 
 
 async def list_directory(
@@ -107,7 +108,7 @@ async def list_directory(
         return ToolReturn(
             return_value=summary,
             content=output_lines,
-            metadata={"success": True, "directory_info": dir_info.model_dump()},
+            metadata={"success": True, "directory_info": asdict(dir_info)},
         )
     except PermissionError as e:
         logger.error(f"Permission error listing directory {path}: {e}")
@@ -136,7 +137,7 @@ async def list_directory(
 
 async def _list_directory_recursive(
     path: Path, show_hidden: bool, recursive: bool, max_depth: int, current_depth: int
-) -> List[DirectoryEntry]:
+) -> list[DirectoryEntry]:
     """List directory contents recursively."""
     entries = []
     try:

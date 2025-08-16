@@ -8,6 +8,7 @@ TModelName = Literal[
     "gpt-4.0",
     "gpt-4.1",
     "gpt-4o",
+    "gpt-4o-mini",
     "gemini-2.5-pro",
     "claude-3-opus20240229",
     "us.anthropic.claude-3-7-sonnet-20250219-v1:0",  # This is BEDROCK MODEL

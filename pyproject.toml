@@ -7,17 +7,17 @@ requires-python = ">=3.13"
 dependencies = [
     "aiofiles>=24.1.0",
     "pydantic>=2.11.7",
-    "pydantic-ai",
+    "pydantic-ai>=0.7.2",
     "pydantic-settings>=2.10.1",
     "pyee>=13.0.0",
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
+    "pytz>=2025.2",
 ]
 
 [dependency-groups]
 dev = [
     "pyclean>=3.1.0",
     "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
     "ruff>=0.12.5",
 ]
 
@@ -47,6 +47,3 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = false
 docstring-code-line-length = "dynamic"
-
-[tool.uv.sources]
-pydantic-ai = { git = "https://github.com/pydantic/pydantic-ai.git", rev = "refs/pull/2365/head" }

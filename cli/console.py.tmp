@@ -1,0 +1,428 @@
+from __future__ import annotations
+
+import logging
+import time
+import uuid
+from collections import deque
+from typing import Dict
+
+from pydantic_ai.messages import (
+    BuiltinToolCallEvent,
+    BuiltinToolResultEvent,
+    FinalResultEvent,
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ThinkingPartDelta,
+    ToolCallPart,
+)
+from rich.console import Console
+from rich.layout import Layout
+from rich.live import Live
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from lib.event_sys import EventBus, StreamEvent, get_event_bus
+
+# Constants
+MAX_MESSAGES = 100
+MAX_DISPLAYED_MESSAGES = 20
+MAX_CONTENT_PREVIEW = 50  # Maximum length for content previews
+
+logger = logging.getLogger(__name__)
+
+
+class TerminalUI:
+    """Main UI class for the Code Agent with pydantic-ai event integration"""
+
+    def __init__(self, event_bus: EventBus | None = None):
+        self.console = Console()
+        self.event_bus = event_bus if event_bus is not None else get_event_bus()
+        self.token_count = 0
+        self.error_message = ""
+        self.console_messages: list[str] = []  # List of formatted message strings instead of StreamEvent objects
+        self.running = True
+        self.session_id = str(uuid.uuid4())
+        self.processed_events: deque[StreamEvent] = deque()  # Store processed events for debugging
+
+        # Store active tool calls with their start times
+        self.active_tool_calls: Dict[str, float] = {}
+
+        # Store incremental content for PartDelta events
+        self.incremental_content: Dict[int, str] = {}
+
+        # Create UI elements only once
+        self._create_static_ui_elements()
+
+        # Create the layout once
+        self.layout = self._create_layout()
+        self.live_display = None
+
+        # Setup specialized event handlers
+        self._setup_event_subscriptions()
+
+    def _create_static_ui_elements(self) -> None:
+        """Create static UI elements that don't change during runtime"""
+        # Enhanced color scheme for different event types
+        self.event_colors = {
+            "part_start | text": "cyan",
+            "part_start | tool-call": "yellow",
+            "part_start | builtin-tool-call": "bright_yellow",
+            "part_start | builtin-tool-return": "bright_green",
+            "part_start | thinking": "magenta",
+            "part_delta | text": "bright_cyan",
+            "part_delta | thinking": "bright_magenta",
+            "part_delta | tool_call": "bright_yellow",
+            "final_result | ": "green",
+            "function_tool_call | tool-call": "yellow",
+            "function_tool_result | tool-return": "green",
+            "function_tool_result | retry-prompt": "red",
+            "builtin_tool_call | builtin-tool-call": "bright_yellow",
+            "builtin_tool_result | builtin-tool-return": "bright_green",
+            "Unknown": "white",
+        }
+
+        # Event icons for better visual representation
+        self.event_icons = {
+            "part_start | text": "💬",
+            "part_start | tool-call": "🛠️",
+            "part_start | builtin-tool-call": "⚙️",
+            "part_start | builtin-tool-return": "✅",
+            "part_start | thinking": "🤔",
+            "part_delta | text": "📝",
+            "part_delta | thinking": "💭",
+            "part_delta | tool_call": "🔧",
+            "final_result | ": "🎯",
+            "function_tool_call | tool-call": "🛠️",
+            "function_tool_result | tool-return": "✅",
+            "function_tool_result | retry-prompt": "🔄",
+            "builtin_tool_call | builtin-tool-call": "⚙️",
+            "builtin_tool_result | builtin-tool-return": "✅",
+            "Unknown": "❓",
+        }
+
+        # Static input panel content
+        self.input_panel_content = self._build_input_panel_content()
+
+    def _setup_event_subscriptions(self) -> None:
+        """Subscribe to all event types with specialized handlers"""
+        # Define event types and their handlers
+        event_handlers = {
+            "part_start | text": self._handle_part_start_text,
+            "part_start | thinking": self._handle_part_start_thinking,
+            "part_delta | text": self._handle_part_delta_text,
+            "part_delta | thinking": self._handle_part_delta_thinking,
+            "part_delta | tool_call": self._handle_part_delta_tool_call,
+            "final_result | ": self._handle_final_result_event,
+            "function_tool_call | tool-call": self._handle_function_tool_call_event,
+            "function_tool_result | tool-return": self._handle_function_tool_result_event,
+            "function_tool_result | retry-prompt": self._handle_function_tool_result_event,
+            "builtin_tool_call | builtin-tool-call": self._handle_builtin_tool_call_event,
+            "builtin_tool_result | builtin-tool-return": self._handle_builtin_tool_result_event,
+        }
+
+        # Subscribe each event type to its specialized handler
+        for event_type_str, handler in event_handlers.items():
+            # Use a direct subscription without type annotation
+            self.event_bus.subscribe(event_type_str, handler)  # type: ignore[arg-type]
+            logger.debug(f"Subscribed specialized handler for {event_type_str}")
+
+    async def _handle_part_start_text(self, event: StreamEvent) -> None:
+        """Handle text-specific PartStartEvent with content extraction"""
+        if not isinstance(event.data, PartStartEvent) or not isinstance(event.data.part, TextPart):
+            return
+
+        # Extract only the text content
+        content = event.data.part.content
+        formatted_message = f"\n\n{content}"
+
+        # Store the formatted message
+        self.console_messages.append(formatted_message)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update only the console panel with new content
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+
+    async def _handle_part_start_thinking(self, event: StreamEvent) -> None:
+        """Handle text-specific PartStartEvent with content extraction"""
+        if not isinstance(event.data, PartStartEvent) or not isinstance(event.data.part, ThinkingPart):
+            return
+
+        # Extract only the text content
+        content = event.data.part.content
+        formatted_message = f"\n\n{content}"
+
+        # Store the formatted message
+        self.console_messages.append(formatted_message)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update only the console panel with new content
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+
+    async def _handle_part_delta_text(self, event: StreamEvent) -> None:
+        """Handle PartStartEvent with content extraction"""
+        if not isinstance(event.data, PartDeltaEvent) or not isinstance(event.data.delta, TextPartDelta):
+            return
+
+        if len(event.data.delta.content_delta) > MAX_CONTENT_PREVIEW:
+            content = event.data.delta.content_delta[:MAX_CONTENT_PREVIEW] + "..."
+        else:
+            content = event.data.delta.content_delta
+
+        self.console_messages.append(content)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update only the console panel with new content
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+
+    async def _handle_part_delta_thinking(self, event: StreamEvent) -> None:
+        """Handle PartStartEvent with content extraction"""
+        if not isinstance(event.data, PartDeltaEvent) or not isinstance(event.data.delta, ThinkingPartDelta):
+            return
+
+        if event.data.delta.content_delta is None:
+            self.processed_events.append(event)
+            return
+
+        if len(event.data.delta.content_delta) > MAX_CONTENT_PREVIEW:
+            content = event.data.delta.content_delta[:MAX_CONTENT_PREVIEW] + "..."
+        else:
+            content = event.data.delta.content_delta
+
+        # Store the formatted message
+        self.console_messages.append(content)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update only the console panel with new content
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+
+    async def _handle_part_delta_tool_call(self, event: StreamEvent) -> None:
+        """Handle PartDeltaEvent with content extraction"""
+        if not isinstance(event.data, PartDeltaEvent) or not isinstance(event.data.delta, ToolCallPart):
+            return
+
+        # Extract the content from the delta
+        tool_name = event.data.delta.tool_name
+        content = f"{tool_name}"
+
+        # Store incremental content for this part index (for UI display only)
+        self.console_messages.append(content)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update only the console panel with new content
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+
+    async def _handle_final_result_event(self, event: StreamEvent) -> None:
+        """Handle FinalResultEvent with content extraction"""
+        if not isinstance(event.data, FinalResultEvent):
+            return
+        self.processed_events.append(event)
+
+    async def _handle_function_tool_call_event(self, event: StreamEvent) -> None:
+        """Handle FunctionToolCallEvent with content extraction"""
+        if not isinstance(event.data, FunctionToolCallEvent):
+            return
+
+        tool_name = event.data.part.tool_name
+
+        # Store the formatted message
+        self.console_messages.append(tool_name)
+        self.processed_events.append(event)  # Store processed event for debugging
+        self._limit_console_messages()
+
+        # Update console and toolbar (for tool call timers)
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+            self.layout["toolbar"].update(self._create_toolbar())
+
+    async def _handle_function_tool_result_event(self, event: StreamEvent) -> None:
+        """Handle FunctionToolResultEvent with content extraction"""
+        if not isinstance(event.data, FunctionToolResultEvent):
+            return
+        # Create formatted message
+        formatted_message = event.data.result.metadata
+
+        # Store the formatted message
+        self.console_messages.append(formatted_message)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update console and toolbar (for error message or tool call completion)
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+            self.layout["toolbar"].update(self._create_toolbar())
+
+    async def _handle_builtin_tool_call_event(self, event: StreamEvent) -> None:
+        """Handle BuiltinToolCallEvent with content extraction"""
+        if not isinstance(event.data, BuiltinToolCallEvent):
+            return
+
+        tool_name = event.data.part.tool_name
+        self.console_messages.append(tool_name)
+        self.processed_events.append(event)
+        self._limit_console_messages()
+
+        # Update console and toolbar (for tool call timers)
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+            self.layout["toolbar"].update(self._create_toolbar())
+
+    async def _handle_builtin_tool_result_event(self, event: StreamEvent) -> None:
+        """Handle BuiltinToolResultEvent with content extraction"""
+        if not isinstance(event.data, BuiltinToolResultEvent):
+            return
+
+        # Extract only the tool id
+        formatted_message = str(event.data.result.metadata)
+
+        # Store the formatted message
+        self.console_messages.append(formatted_message)
+        self._limit_console_messages()
+
+        # Update console and toolbar (for tool call completion)
+        if self.live_display:
+            self.layout["console"].update(self._create_console_panel())
+            self.layout["toolbar"].update(self._create_toolbar())
+
+    def _limit_console_messages(self) -> None:
+        """Limit the number of stored console messages to prevent memory issues"""
+        if len(self.console_messages) > MAX_MESSAGES:
+            self.console_messages = self.console_messages[-MAX_MESSAGES:]
+
+    def _create_toolbar(self) -> Panel:
+        """Create the toolbar panel with active tool call information"""
+        table = Table.grid(padding=1)
+        table.add_column(style="dim", justify="left")
+        table.add_column(style="dim", justify="center")
+        table.add_column(style="dim", justify="right")
+
+        # Token count
+        token_display = f"Tokens: {self.token_count:,}"
+
+        # Status with session info and active tool calls
+        active_tools = len(self.active_tool_calls)
+        if active_tools > 0:
+            oldest_tool_time = min(self.active_tool_calls.values()) if self.active_tool_calls else 0
+            elapsed = time.time() - oldest_tool_time if oldest_tool_time else 0
+            status = f"Active ({active_tools} tools running, {elapsed:.1f}s)"
+        else:
+            status = f"Active (Session: {self.session_id[:8]}...)"
+
+        # Error display
+        error_display = f"Error: {self.error_message}" if self.error_message else "No Errors"
+
+        table.add_row(token_display, f"Status: {status}", error_display)
+
+        return Panel(table, title=None, border_style="dim blue", height=3, padding=0)
+
+    def _truncate_content(self, content: str, max_length: int = MAX_CONTENT_PREVIEW, from_end: bool = False) -> str:
+        """Helper to truncate content to a max length"""
+        if not content:
+            return ""
+
+        if len(content) <= max_length:
+            return content
+
+        if from_end:
+            # Get last max_length characters
+            return f"...{content[-max_length:]}"
+
+        # Get first max_length characters
+        return f"{content[:max_length]}..."
+
+    def _create_console_panel(self) -> Panel:
+        """Create the console output panel with enhanced event formatting"""
+        console_text = Text()
+
+        # Get the last MAX_DISPLAYED_MESSAGES messages
+        displayed_messages = self.console_messages[-MAX_DISPLAYED_MESSAGES:]
+
+        for message in displayed_messages:
+            # Just add the pre-formatted message
+            console_text.append(f"{message}")
+        # Handle panel with minimal border and no padding
+        return Panel(console_text, title=None, border_style="dim blue", padding=0)
+
+    def _create_input_panel(self) -> Panel:
+        """Create the input panel with static content"""
+        return Panel(self.input_panel_content, title=None, border_style="dim blue", padding=0)
+
+    def _build_input_panel_content(self) -> Text:
+        """Build the static content for the input panel"""
+        input_text = Text("Type your commands here...", style="dim italic")
+        input_text.append("\n\nCommands:", style="bold")
+        input_text.append("\n• /token <count> - Set token count")
+        input_text.append("\n• /session <id> - Change session ID")
+        input_text.append("\n• /clear - Clear console")
+        input_text.append("\n• /quit - Exit application")
+        input_text.append("\n\nEvent Types:", style="bold dim")
+        input_text.append("\n• part_start, part_delta, final_result")
+        input_text.append("\n• function_tool_call, function_tool_result")
+        input_text.append("\n• builtin_tool_call, builtin_tool_result")
+        return input_text
+
+    def _create_layout(self) -> Layout:
+        """Create the main layout with toolbar at bottom and no gaps"""
+        layout = Layout()
+
+        # Create a single vertical layout with no gaps
+        layout.split_column(
+            Layout(name="console", ratio=16), Layout(name="input", ratio=7), Layout(name="toolbar", size=3)
+        )
+
+        return layout
+
+    def update_layout(self, layout: Layout) -> None:
+        """Update the layout with current content, ensuring no gap between panels"""
+        layout["toolbar"].update(self._create_toolbar())
+        layout["console"].update(self._create_console_panel())
+        layout["input"].update(self._create_input_panel())
+
+    def start_display(self) -> None:
+        """Start the UI display with event-driven updates"""
+        if self.live_display is not None:
+            return
+
+        logger.info("Starting UI with event-driven updates...")
+        self.running = True
+
+        # Ensure subscriptions are set up
+        self._setup_event_subscriptions()
+
+        # Create a new layout if needed
+        if not self.layout:
+            self.layout = self._create_layout()
+
+        # Start the live display with good refresh rate for animations and no vertical spacing
+        self.live_display = Live(self.layout, refresh_per_second=10, vertical_overflow="visible")
+        self.live_display.start()
+
+        # Update the layout initially
+        self.update_layout(self.layout)
+
+    def stop_display(self) -> None:
+        """Stop the UI display"""
+        if self.live_display is not None:
+            self.running = False
+            self.live_display.stop()
+            self.live_display = None
+
+    def refresh(self) -> None:
+        """Manually refresh the display"""
+        if self.live_display is not None and self.layout:
+            self.update_layout(self.layout)

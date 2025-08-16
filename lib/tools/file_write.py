@@ -1,9 +1,9 @@
 import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 import aiofiles
-from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -12,13 +12,14 @@ from lib.context import AgentContext
 logger = logging.getLogger(__name__)
 
 
-class FileInfo(BaseModel):
+@dataclass(frozen=True, slots=True)
+class FileInfo:
     """Information about a file that was written."""
 
-    path: str = Field(description="Absolute path to the file")
-    size: int = Field(description="Size of the file in bytes")
-    lines_written: int = Field(description="Number of lines written to the file")
-    created: str = Field(description="ISO timestamp when the file was created/modified")
+    path: str
+    size: int
+    lines_written: int
+    created: str
 
 
 async def write_file(
@@ -86,7 +87,7 @@ async def write_file(
                 lines_written=len(content.splitlines()),
                 created=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
             )
-            logger.debug(f"File info: {file_info.model_dump()}")
+            logger.debug(f"File info: {file_info}")
         except Exception as info_err:
             logger.warning(f"Error getting file stats: {info_err}")
             file_info = FileInfo(
@@ -119,7 +120,7 @@ async def write_file(
         return ToolReturn(
             return_value=summary,
             content=content_output,
-            metadata={"success": True, "file_info": file_info.model_dump()},
+            metadata={"success": True, "file_info": asdict(file_info)},
         )
 
     except PermissionError as e:

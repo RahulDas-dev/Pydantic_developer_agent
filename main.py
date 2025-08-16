@@ -1,20 +1,24 @@
-# ruff: noqa: T201
+# ruff: noqa: T201 PLC0415
 import asyncio
+import time
 from pathlib import Path
-
-from lib import AgentContext, agent, config, startup_operations
-
-startup_operations(config)
-
-workspace_path = "D:/react/DataView"
-tasks = ["can u read the project code and let me know ur understanding?"]
 
 
 async def run_agent(workspace_path: str, task_str: str | None) -> None:
+    from lib import AgentConfig, AgentContext, build_primary_agent, get_event_bus, startup_operations
+
+    startup_operations(AgentConfig())
+
     if not Path(workspace_path).is_dir():
         raise ValueError("The provided workspace path should be a directory, not a file.")
 
-    context = AgentContext(workspace_path=workspace_path)
+    # Get the event bus
+    event_bus = get_event_bus()
+
+    # Create the context with the event bus
+    context = AgentContext(workspace_path=workspace_path, event_bus=event_bus)
+
+    agent = build_primary_agent(AgentConfig())
 
     while True:
         while not task_str:
@@ -31,4 +35,59 @@ async def run_agent(workspace_path: str, task_str: str | None) -> None:
         task_str = None
 
 
-asyncio.run(run_agent(workspace_path, tasks[0]))
+def run_ui() -> None:
+    """Main entry point for the UI"""
+    # Create an instance of the EventBus
+    from cli.console import TerminalUI
+    from lib import get_event_bus
+
+    event_bus = get_event_bus()
+
+    # Create the UI with the event bus
+    session_id = "terminal-ui-session"
+    ui = TerminalUI(session_id, event_bus)
+
+    try:
+        # Start the display
+        ui.initialize()
+
+        # Main loop with error handling outside the loop for better performance
+        try:
+            # Keep the UI running with event-driven updates
+            while ui.running:
+                # Check for active tool calls and update their timers
+                if ui.active_tool_calls:
+                    ui.refresh()
+
+                # Refresh the display periodically (slower when idle)
+                time.sleep(0.2)
+
+                # Regular refresh to keep animations smooth
+                ui.refresh()
+
+        except Exception as e:
+            print(f"Error in UI loop: {e}")
+
+    except KeyboardInterrupt:
+        print("Received keyboard interrupt.")
+    finally:
+        # Ensure the display is stopped
+        ui.stop_display()
+        print("Code Agent UI stopped.")
+
+
+async def run_app(workspace_path: str | None = None) -> None:
+    """Run the agent and UI in parallel"""
+    from cli.app import Application
+
+    await Application(target_dir=workspace_path).run()
+
+
+if __name__ == "__main__":
+    workspace_path = "D:/react/DataView"
+    tasks = ["can u read the project code and let me know ur understanding?"]
+    # Run the UI in a separate thread
+    # run_ui()
+    # ui_thread.join()
+    # asyncio.run(run_agent(workspace_path, tasks[0]))
+    asyncio.run(run_app(workspace_path))

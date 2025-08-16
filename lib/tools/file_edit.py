@@ -1,9 +1,9 @@
 import difflib
 import logging
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import aiofiles
-from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -17,14 +17,15 @@ MAX_PREVIEW_LENGTH = 100
 MAX_CONTENT_PREVIEW = 1000
 
 
-class EditResult(BaseModel):
+@dataclass(frozen=True, slots=True)
+class EditResult:
     """Result of a file edit operation."""
 
-    file_path: str = Field(description="Path to the file that was edited")
-    relative_path: str = Field(description="Path relative to workspace root")
-    operation: str = Field(description="Operation performed (created or modified)")
-    replacements_made: int = Field(description="Number of replacements made")
-    is_new_file: bool = Field(description="Whether the file was newly created")
+    file_path: str
+    relative_path: str
+    operation: str
+    replacements_made: int
+    is_new_file: bool
 
 
 def _generate_diff(old_content: str | None, new_content: str, file_path: Path) -> str:
@@ -219,7 +220,7 @@ async def edit_file(
         return ToolReturn(
             return_value=display_message,
             content=content_lines,
-            metadata={"success": True, "edit_result": edit_result.model_dump()},
+            metadata={"success": True, "edit_result": asdict(edit_result)},
         )
 
     except Exception as e:

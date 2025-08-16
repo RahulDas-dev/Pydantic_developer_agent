@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import aiofiles
-from pydantic import BaseModel, Field
+from attr import dataclass
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -12,13 +12,14 @@ from lib.context import AgentContext
 logger = logging.getLogger(__name__)
 
 
-class FileInfo(BaseModel):
+@dataclass(frozen=True, slots=True)
+class FileInfo:
     """Information about a read file."""
 
-    path: str = Field(description="Absolute path to the file")
-    size: int = Field(description="Size of the file in bytes")
-    modified: str = Field(description="ISO formatted timestamp of last modification")
-    lines_read: int = Field(description="Number of lines read from the file")
+    path: str
+    size: int
+    modified: str
+    lines_read: int
 
 
 async def read_file(
