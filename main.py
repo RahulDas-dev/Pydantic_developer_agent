@@ -46,12 +46,12 @@ def run_ui() -> None:
     ui = TerminalUI(session_id, event_bus)
     ui.initialize()
     strt_time = time.time()
-
+    one_second = 60
     try:
         while True:
             ui.refresh()
             time.sleep(0.2)
-            if time.time() - strt_time > 60:
+            if time.time() - strt_time > one_second:
                 break
     except Exception as e:
         print(f"Error in UI loop: {e}")

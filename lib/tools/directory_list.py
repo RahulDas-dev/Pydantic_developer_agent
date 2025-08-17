@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from lib.context import AgentContext
+from lib.agents.context import AgentContext
 
 logger = logging.getLogger(__name__)
 

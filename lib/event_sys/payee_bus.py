@@ -1,0 +1,120 @@
+# events.py - Event definitions
+import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from pyee.asyncio import AsyncIOEventEmitter
+
+from .types import EventType, StreamOutEvent, UserInputEvent
+
+logger = logging.getLogger("event_sys")
+
+# Type aliases for better readability
+EventHandler = Callable[[StreamOutEvent | UserInputEvent], None]
+AsyncEventHandler = Callable[[StreamOutEvent | UserInputEvent], Awaitable[None]]
+AnyEventHandler = Callable[[StreamOutEvent | UserInputEvent], Any]
+
+
+class EventBus:
+    def __init__(self) -> None:
+        self.emitter = AsyncIOEventEmitter()
+        self._active_sessions: dict[str, list[AnyEventHandler]] = {}
+
+    def on(self, event_type: EventType, handler: EventHandler) -> None:
+        """Subscribe to events"""
+        self.emitter.on(event_type, handler)
+        logger.debug(f"Subscribed handler to {event_type}")
+
+    def once(self, event_type: EventType, handler: EventHandler) -> None:
+        """Subscribe to event once"""
+        self.emitter.once(event_type, handler)
+        logger.debug(f"Subscribed one-time handler to {event_type}")
+
+    def off(self, event_type: EventType, handler: EventHandler) -> None:
+        """Unsubscribe from event"""
+        self.emitter.remove_listener(event_type, handler)
+        logger.debug(f"Unsubscribed handler from {event_type}")
+
+    def emit(self, event: StreamOutEvent | UserInputEvent) -> None:
+        """Emit event to all subscribers"""
+        try:
+            self.emitter.emit(event.event_type, event)
+            logger.debug(f"Emitted {event.event_type} for session {event.session_id}")
+        except Exception as e:
+            logger.error(f"Error emitting event {event.event_type}: {e}")
+
+    def session_on(self, session_id: str, event_type: EventType, handler: AsyncEventHandler) -> None:
+        """Subscribe to events for specific session"""
+
+        async def session_handler(event: StreamOutEvent | UserInputEvent) -> None:
+            if event.session_id == session_id:
+                try:
+                    await handler(event)
+                except Exception as e:
+                    logger.error(f"Error in session handler for {session_id}: {e}")
+
+        self.emitter.on(event_type, session_handler)
+
+        # Track for cleanup
+        if session_id not in self._active_sessions:
+            self._active_sessions[session_id] = []
+
+        self._active_sessions[session_id].append(session_handler)
+        logger.debug(f"Subscribed session handler for {session_id} to {event_type}")
+
+    def cleanup_session(self, session_id: str) -> None:
+        """Clean up session-specific handlers"""
+        if session_id in self._active_sessions:
+            handlers = self._active_sessions[session_id]
+
+            # Remove all handlers for this session
+            for event_type in EventType.__args__:  # type: ignore
+                for handler in handlers:
+                    try:
+                        self.emitter.remove_listener(event_type, handler)
+                    except ValueError:
+                        # Handler might not be registered for this event type
+                        pass
+
+            del self._active_sessions[session_id]
+            logger.debug(f"Cleaned up {len(handlers)} handlers for session {session_id}")
+
+    def get_session_handler_count(self, session_id: str) -> int:
+        """Get number of active handlers for a session"""
+        return len(self._active_sessions.get(session_id, []))
+
+    def get_active_sessions(self) -> list[str]:
+        """Get list of sessions with active handlers"""
+        return list(self._active_sessions.keys())
+
+    def remove_all_listeners(self, event_type: EventType | None = None) -> None:
+        """Remove all listeners for an event type, or all listeners if no event type specified"""
+        if event_type:
+            self.emitter.remove_all_listeners(event_type)
+            logger.debug(f"Removed all listeners for {event_type}")
+        else:
+            self.emitter.remove_all_listeners()
+            self._active_sessions.clear()
+            logger.debug("Removed all listeners")
+
+
+# Global event bus instance
+_event_bus: EventBus | None = None
+
+
+def get_event_bus() -> EventBus:
+    """Get the global event bus instance (singleton pattern)"""
+    global _event_bus
+    if _event_bus is None:
+        _event_bus = EventBus()
+        logger.debug("Created new EventBus instance")
+    return _event_bus
+
+
+def reset_event_bus() -> None:
+    """Reset the global event bus (useful for testing)"""
+    global _event_bus
+    if _event_bus is not None:
+        _event_bus.remove_all_listeners()
+    _event_bus = None
+    logger.debug("Reset global EventBus instance")

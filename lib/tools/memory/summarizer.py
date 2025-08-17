@@ -4,7 +4,7 @@ from typing import List
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
-from lib.factories import llm_factory
+from lib.agents.factories import llm_factory
 
 logger = logging.getLogger(__name__)
 

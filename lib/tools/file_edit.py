@@ -7,7 +7,7 @@ import aiofiles
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from lib.context import AgentContext
+from lib.agents.context import AgentContext
 
 from .utils import read_file_content
 

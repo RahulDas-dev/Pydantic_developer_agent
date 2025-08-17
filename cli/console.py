@@ -393,8 +393,10 @@ class TerminalUI:
         """Create the input panel with current user input and history"""
         input_content = Text()
 
-        # Show current input
-        input_content.append(f"> {self.current_input}", style="bright_white bold")
+        # Show current input with cursor
+        input_content.append("> ", style="bright_white bold")
+        input_content.append(self.current_input, style="bright_white bold")
+        input_content.append("█", style="bright_white bold blink")  # Blinking cursor
 
         # Add help text
         input_content.append("\n\nCommands:", style="bold")

@@ -1,6 +1,6 @@
 from .agent import Failure, build_primary_agent
 from .configs import ModelConfig, ToolsConfig
-from .context import AgentContext
+from .agents.context import AgentContext
 from .event_sys import (
     EventBus,
     EventHandler,

@@ -85,7 +85,7 @@ async def get_fruit_price(ctx: RunContext[AgentContext], food_name: str) -> Tool
         )
     return ToolReturn(
         return_value=price,
-        content=f"The price of {food_name} is {price} per kilogram.",
+        content=f"The price of {food_name} is {price} per kilogram. ",
         metadata={"success": True},
     )
 
@@ -96,7 +96,7 @@ task_str = "what is the price of an apple, banana, grape, pineapple?"
 async def run_agent(shop_name: str, task: str) -> None:
     context = AgentContext(shop_name=shop_name)
     results = await agent.run(user_prompt=task, deps=context)
-    print(results)
+    print(results.output)
 
 
 shop_name = "Rahul's Fresh Foods"

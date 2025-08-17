@@ -6,7 +6,7 @@ from pydantic_ai.messages import (
     HandleResponseEvent,
 )
 
-from lib.context import HasEventBus
+from lib.agents.context import HasEventBus
 
 # TAgentDeps = TypeVar("TAgentDeps", bound=AgentDeps)
 
